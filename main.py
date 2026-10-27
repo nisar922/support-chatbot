@@ -1,7 +1,10 @@
 from fastapi import FastAPI, Depends
 from sqlalchemy import text
 from sqlalchemy.orm import Session
-from app.db import get_db
+from app.db import engine, Base, get_db
+from app import models
+
+Base.metadata.create_all(bind=engine)
 
 app = FastAPI(title="Support Chatbot")
 
