@@ -3,13 +3,14 @@ from sqlalchemy import text
 from sqlalchemy.orm import Session
 from app.db import engine, Base, get_db
 from app import models
-from app.routers import auth
+from app.routers import auth,chat
 
 Base.metadata.create_all(bind=engine)
 
 app = FastAPI(title="Support Chatbot")
 
 app.include_router(auth.router)
+app.include_router(chat.router)
 
 
 @app.get("/health")

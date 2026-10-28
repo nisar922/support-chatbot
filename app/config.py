@@ -5,6 +5,9 @@ class Settings(BaseSettings):
     DATABASE_URL: str
     REDIS_URL: str
     JWT_SECRET: str
+    LLM_API_KEY: str
+    LLM_BASE_URL: str
+    LLM_MODEL: str 
 
     model_config = SettingsConfigDict(env_file=".env")
 
