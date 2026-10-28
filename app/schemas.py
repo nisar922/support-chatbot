@@ -33,4 +33,19 @@ class MessageOut(BaseModel):
     content: str
     created_at: datetime
 
-    model_config = ConfigDict(from_attributes=True)            
+    model_config = ConfigDict(from_attributes=True)    
+
+class DocumentOut(BaseModel):
+    id: int
+    filename: str
+    created_at: datetime
+
+    model_config = ConfigDict(from_attributes=True)
+
+class DocumentUploadOut(BaseModel):
+    id: int
+    filename: str
+    chunke: int
+    
+        
+                    

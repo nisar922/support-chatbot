@@ -3,7 +3,11 @@ from sqlalchemy import text
 from sqlalchemy.orm import Session
 from app.db import engine, Base, get_db
 from app import models
-from app.routers import auth,chat
+from app.routers import auth, chat, documents
+
+
+with engine.begin() as conn:
+    conn.execute(text("CREATE EXTENSION IF NOT EXISTS vector"))
 
 Base.metadata.create_all(bind=engine)
 
@@ -11,6 +15,7 @@ app = FastAPI(title="Support Chatbot")
 
 app.include_router(auth.router)
 app.include_router(chat.router)
+app.include_router(documents.router)
 
 
 @app.get("/health")

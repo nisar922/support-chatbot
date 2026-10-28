@@ -4,19 +4,25 @@ from app.db import get_db
 from app.deps import get_current_user
 from app.models import Conversation, Message, User
 from app.schemas import ChatRequest, ChatResponse, MessageOut
-from app.services import llm
+from app.services import llm, rag
 
 router = APIRouter(prefix="/chat", tags=["chat"])
 
 UNKNOWN_MARKER = "[UNKNOWN]"
 HISTORY_LIMIT = 10
 
-SYSTEM_PROMPT = (
-    "You are a helpful customer support assistant. "
-    "Answer clearly and briefly. "
-    "If you cannot answer confidently, start your reply with "
-    f"{UNKNOWN_MARKER} and politely say a human agent will follow up."
+BASE_PROMPT = (
+    "You are a customer support assistant. "
+    "Answer using ONLY the context below and the conversation so far. "
+    "Be clear and brief. For greetings or small talk, reply normally. "
+    f"If the answer is not in the context, start your reply with {UNKNOWN_MARKER} "
+    "and politely say a human agent will follow up.\n\n"
 )
+
+def build_system_prompt(chunks: list[str]) -> str:
+    context = "\n\n---\n\n".join(chunks) if chunks else "(no relevant context found)"
+    return BASE_PROMPT + "Context:\n" + context
+
 @router.post("", response_model=ChatResponse)
 def chat(
     data: ChatRequest,
@@ -42,7 +48,8 @@ def chat(
     )
     history.reverse()
 
-    messages = [{"role": "system", "content": SYSTEM_PROMPT}]
+    chunks = rag.search(db, data.message)
+    messages = [{"role": "system", "content": build_system_prompt(chunks)}]
     messages += [{"role": m.role, "content": m.content} for m in history]
     messages.append({"role": "user", "content": data.message})
 
