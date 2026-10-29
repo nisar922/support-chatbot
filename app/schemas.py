@@ -48,5 +48,28 @@ class DocumentUploadOut(BaseModel):
     filename: str
     chunke: int
     
-        
+class StatsOut(BaseModel):
+    total_users: int
+    total_conversations: int
+    total_questions: int
+    resolved_questions: int
+    unresolved_questions: int
+    resolution_rate: float
+    total_documents: int
+    total_chunks: int
+
+class ConversationSummary(BaseModel):
+    id: int
+    user_email: str
+    created_at: datetime
+    message_count: int
+    unresolved_count: int
+    last_message_at: Optional[datetime] = None
+
+class UnresolvedQuery(BaseModel):
+    message_id: int
+    conversation_id: int
+    user_email: str
+    question: str
+    created_at: datetime        
                     

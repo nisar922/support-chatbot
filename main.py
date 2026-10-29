@@ -4,6 +4,7 @@ from sqlalchemy.orm import Session
 from app.db import engine, Base, get_db
 from app import models
 from app.routers import auth, chat, documents
+from app.routers import admin, auth, chat, documents
 
 
 with engine.begin() as conn:
@@ -16,6 +17,7 @@ app = FastAPI(title="Support Chatbot")
 app.include_router(auth.router)
 app.include_router(chat.router)
 app.include_router(documents.router)
+app.include_router(admin.router)
 
 
 @app.get("/health")
