@@ -1,0 +1,193 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Admin Dashboard</title>
+  <link rel="stylesheet" href="/static/style.css">
+</head>
+<body>
+  <header>
+    <h1>Admin Dashboard</h1>
+    <nav><a href="/">Back to chat</a></nav>
+  </header>
+  <main>
+    <p id="pageError" class="error"></p>
+    <section class="card">
+      <h2>Overview</h2>
+      <div id="stats" class="stats"></div>
+    </section>
+    <section class="card">
+      <h2>Knowledge base (FAQ)</h2>
+      <div class="row">
+        <input id="fileInput" type="file" accept=".txt,.md">
+        <button id="uploadBtn">Upload</button>
+      </div>
+      <p id="uploadMsg" class="error"></p>
+      <div class="scroll">
+        <table>
+          <thead><tr><th>ID</th><th>File</th><th>Uploaded</th><th></th></tr></thead>
+          <tbody id="docsBody"></tbody>
+        </table>
+      </div>
+    </section>
+    <section class="card">
+      <h2>Unresolved queries</h2>
+      <div class="scroll">
+        <table>
+          <thead><tr><th>Chat</th><th>User</th><th>Question</th><th>When</th><th></th></tr></thead>
+          <tbody id="unresolvedBody"></tbody>
+        </table>
+      </div>
+    </section>
+    <section class="card">
+      <h2>Conversations</h2>
+      <div class="scroll">
+        <table>
+          <thead><tr><th>ID</th><th>User</th><th>Messages</th><th>Unresolved</th><th>Last message</th><th></th></tr></thead>
+          <tbody id="convBody"></tbody>
+        </table>
+      </div>
+    </section>
+    <section class="card" id="historyCard" hidden>
+      <h2 id="historyTitle">Chat</h2>
+      <div id="history"></div>
+    </section>
+  </main>
+  <script src="/static/common.js"></script>
+  <script>
+    const $ = (id) => document.getElementById(id);
+
+    function addRow(tbody, cells) {
+      const tr = document.ceateElement("tr");
+
+      cells.forEach((c) => {
+        const td = document.createElement("td");
+        if (c instanceof Node) td.appendChild(c); else td.textContent = c;
+        tr.appendChild(td);
+      });
+      tbody.appendChild(tr);
+    }
+
+    function button(label, onClick, cls) {
+      const b = el("button", cls || "secondary", label);
+      b.onclick = onClick;
+      return b;
+    }
+
+    function handleError(e) {
+      if (e.status === 401) { clearToken(); location.href = "/"; return; }
+      $("pageError").textContent =
+        e.status === 403 ? "Admin access required. Login with an admin account." : e.message;
+    }
+
+    async function loadStats() {
+      const s = await api("/admin/stats");
+      const items = [
+        ["Users", s.total_users],
+        ["Chats", s.total_conversations],
+        ["Questions", s.total_questions],
+        ["Resolved", s.resolved_questions],
+        ["Unresolved", s.unresolved_questions],
+        ["Resolution rate", s.resolution_rate + "%"],
+        ["Documents", s.total_documents],
+        ["Chunks", s.total_chunks],
+
+      ];
+      $("stats").replaceChildren();
+      items.forEach(([label, value]) => {
+        const box = el("div", "stat");
+        box.appendChild(el("b", "", String(value)));
+        box.appendChild(el("span", "", label));
+        $("stats").appendChild(box);
+      });
+    }
+
+    async function loadDocs() {
+      const docs = await api("/documents");
+      $("docsBody").replacChildren();
+
+      docs.forEach((d) => {
+        addRow($("docsBody"), [
+          d.id, d.filename, fmt(d.created_at),
+          button("Delete", async () => {
+            if (!confirm("Delete " + d.filename + "?")) return;
+            try { await api("/documents/" + d.id, { method: "DELETE" }); refresh(); }
+            catch (e) { handleError(e); }
+          }, "danger"),
+        ]);
+      });
+    }
+
+
+    async function loadUnresolved() {
+      const rows = await api("/admin/unresolved?limit=20");
+      $("unresolvedBody").replaceChildren();
+      rows.forEach((r) => {
+        addRow($("unresolvedBody"), [
+          r.conversation_id, r.user_email, r.question, fmt(r.created_at),
+          button("View chat", () => showHistory(r.conversation_id)),
+        ]);
+      });
+    }
+
+    async function loadConversations() {
+      const rows = await api("/admin/conversations?limit=20");
+      $("convBody").replaceChildren();
+      rows.forEach((r) => {
+        addRow($("convBody"), [
+          r.id, r.user_email, r.message_count, r.unresolved_count,
+          fmt(r.last_message_at),
+          button("View", () => showHistory(r.id)),
+        ]);
+      });
+    }
+
+    async function showHistory(id) {
+      try {
+        const msgs = await api("/admin/conversations/" + id);
+        $("historyTitle").textContent = "Chat #" + id;
+        $("history").replaceChildren();
+        msgs.forEach((m) => {
+          const div = el("div", "msg " + m.role, m.content);
+          div.appendChild(el("small", "note",
+            fmt(m.created_at) + (m.resolved ? "" : " · unresolved")));
+          $("history").appendChild(div);
+        });
+        $("historyCard").hidden = false;
+        $("historyCard").scrollIntoView({ behavior: "smooth" });
+      } catch (e) { handleError(e); }
+    }
+
+
+    async function upload() {
+      const file = $("fileInput").files[0];
+      if (!file) { $("uploadMsg").textContent = "Choose a .txt or .md file first."; return; }
+      const fd = new FormData();
+      fd.append("file", file);
+      $("uploadBtn").disabled = true;
+      $("uploadMsg").textContent = "Uploading... (first upload can take a minute)";
+      try {
+        const out = await api("/documents", { method: "POST", formData: fd });
+        $("uploadMsg").textContent = "Uploaded " + out.filename + " (" + out.chunks + " chunks)";
+        $("fileInput").value = "";
+        refresh();
+      } catch (e) {
+        $("uploadMsg").textContent = e.message;
+        if (e.status === 401) handleError(e);
+      } finally {
+        $("uploadBtn").disabled = false;
+      }
+    }
+
+    async function refresh() {
+      $("pageError").textContent = "";
+      try {
+        await Promise.all([loadStats(), loadDocs(), loadUnresolved(), loadConversations()]);
+      } catch (e) { handleError(e); }
+    }
+    $("uploadBtn").onclick = upload;
+    if (!getToken()) location.href = "/"; else refresh();
+  </script>
+</body>
+</html>

@@ -1,0 +1,149 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Support Chatbot</title>
+  <link rel="stylesheet" href="/static/style.css">
+</head>
+<body>
+  <header>
+    <h1>Support Chatbot</h1>
+    <nav id="nav" hidden>
+      <a id="adminLink" href="/admin-panel" hidden>Admin</a>
+      <button id="newChatBtn" class="secondary">New chat</button>
+      <button id="logoutBtn" class="secondary">Logout</button>
+    </nav>
+  </header>
+  <main>
+    <section id="authView" class="card">
+      <h2>Login or Register</h2>
+      <input id="email" type="email" placeholder="Email" autocomplete="username">
+      <input id="password" type="password" placeholder="Password (min 8 characters)" autocomplete="current-password">
+      <div class="row">
+        <button id="loginBtn">Login</button>
+        <button id="registerBtn" class="secondary">Register</button>
+      </div>
+      <p id="authError" class="error"></p>
+    </section>
+    <section id="chatView" class="card" hidden>
+      <div id="messages"></div>
+      <div class="row">
+        <input id="msgInput" type="text" placeholder="Ask a question..." maxlength="2000">
+        <button id="sendBtn">Send</button>
+      </div>
+      <p id="chatError" class="error"></p>
+    </section>
+  </main>
+  <script src="/static/common.js"></script>
+  <script>
+    const $ = (id) => document.getElementById(id);
+    let conversationId = null;
+
+
+    function addMessage(role, text, note) {
+      const div = el("div", "msg " + role, text);
+      if (note) div.appendChild(el("small", "note", note));
+      $("messages").appendChild(div);
+      $("messages").scrollTop = $("messages").scrollHeight;
+      return div;
+    }
+
+    function showAuth() {
+      $("authView").hidden = false;
+      $("chatView").hidden = true;
+      $("nav").hidden = true;
+
+    }
+
+    function resetChat() {
+      conversationId = null;
+      $("messages").replaceChildren();
+      addMessage("bot", "Hi! How can I help you today?");
+    }
+
+    async function showApp() {
+      try {
+        const me = await api("/auth/me");
+        $("authView").hidden = true;
+        $("chatView").hidden = false;
+        $("nav").hidden = false;
+        $("adminLink").hidden = me.role !== "admin";
+        if (!$("messages").children.length) resetChat();
+      } catch (e) {
+        clearToken();
+        showAuth();
+      }
+    }
+
+
+    async function login() {
+      $("authError").textContent = "";
+      try {
+        const data = await api("/auth/login", {
+          method: "POST",
+          form: { username: $("email").value.trim(), password: $("password").value },
+        });
+        setToken(data.access_token);
+        $("password").value = "";
+        showApp();
+      } catch (e) {
+        $("authError").textContent = e.message;
+      }
+    }
+
+    async function register() {
+      $("authError").textContent = "";
+      try {
+        await api("/auth/register", {
+          method: "POST",
+          body: { email: $("email").value.trim(), password: $("password").value },
+        });
+        await login();
+      } catch (e) {
+        $("authError").textContent = e.message;
+
+      }
+    }
+
+
+    async function send() {
+      const text = $("msgInput").value.trim();
+      if (!text) return;
+      $("chatError").textContent = "";
+      $("msgInput").value = "";
+      addMessage("user", text);
+      const typing = addMessage("bot", "Typing...");
+      $("sendBtn").disabled = true;
+      try {
+        const data = await api("/chat", {
+          method: "POST",
+          body: { message: text, conversation_id: conversationId },
+        });
+        conversationId = data.conversation_id;
+        typing.remove();
+        const notes = [];
+        if (data.cached) notes.push("from cache");
+        if (!data.resolved) notes.push("forwarded to a human agent");
+        addMessage("bot", data.reply, notes.join(" · "));
+      } catch (e) {
+        typing.remove();
+        if (e.status === 401) { clearToken(); showAuth(); }
+        $("chatError").textContent = e.message;
+      } finally {
+        $("sendBtn").disabled = false;
+        $("msgInput").focus();
+      }
+    }
+
+    $("loginBtn").onclick = login;
+    $("registerBtn").onclick = register
+    $("sendBtn").onclick = send;
+    $("msgInput").addEventListener("keydown", (e) => { if (e.key === "Enter") send(); });
+    $("newChatBtn").onclick = resetChat;
+    $("logoutBtn").onclick = () => { clearToken(); $("messages").replaceChildren(); showAuth(); };
+
+    if (getToken()) showApp(); else showAuth();
+  </script>
+</body>
+</html>
