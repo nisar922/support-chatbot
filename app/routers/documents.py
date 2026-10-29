@@ -4,7 +4,7 @@ from app.db import get_db
 from app.deps import require_admin
 from app.models import Document, User
 from app.schemas import DocumentOut, DocumentUploadOut
-from app.services import rag
+from app.services import rag, cache
 
 router = APIRouter(prefix="/documents", tags=["documents"])
 
@@ -31,6 +31,7 @@ def upload_document(
         doc, count = rag.add_document(db, name, text)
     except ValueError as e:
         raise HTTPException(status_code=400, detail=str(e))
+    cache.invalidate_answers()
     return DocumentUploadOut(id=doc.id, filename=doc.filename, chunks=count)
 
 
@@ -51,3 +52,5 @@ def delete_document(
         raise HTTPException(status_code=404, detail="Document not found")
     db.delete(doc)
     db.commit()
+
+    cache.invalidate_answers()

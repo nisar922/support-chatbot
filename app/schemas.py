@@ -26,6 +26,7 @@ class ChatResponse(BaseModel):
     conversation_id: int
     reply: str
     resolved: bool
+    cached: bool = False
 
 class MessageOut(BaseModel):
     id: int
