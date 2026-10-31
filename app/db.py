@@ -9,7 +9,7 @@ for prefix in ("postgresql+psycopg://", "postgres://", "postgresql://"):
         db_url = "postgresql+psycopg2://" + db_url[len(prefix):]
         break
 
-engine = create_engine(settings.DATABASE_URL, pool_pre_ping=True)
+engine = create_engine(db_url, pool_pre_ping=True)
 SessionLocal = sessionmaker(bind=engine, autoflush=False)
 Base = declarative_base()
 
