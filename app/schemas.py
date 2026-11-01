@@ -46,7 +46,7 @@ class DocumentOut(BaseModel):
 class DocumentUploadOut(BaseModel):
     id: int
     filename: str
-    chunke: int
+    chunks: int
     
 class StatsOut(BaseModel):
     total_users: int
